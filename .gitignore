@@ -4,3 +4,4 @@ java.iml
 target/
 
 src/main/resources
+data

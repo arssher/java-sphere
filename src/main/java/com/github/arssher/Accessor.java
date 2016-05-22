@@ -2,20 +2,26 @@ package com.github.arssher;
 
 import twitter4j.*;
 
+import java.io.*;
+import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
+import java.util.Properties;
+import java.util.Scanner;
 import java.util.logging.ConsoleHandler;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class Accessor {
-    public Accessor() {
+    public Accessor() throws IOException {
         logger = Logger.getLogger(Accessor.class.getName());
         logger.setUseParentHandlers(false);
         ConsoleHandler handler = new ConsoleHandler();
         handler.setFormatter(new LogFormatter());
         logger.addHandler(handler);
+
+        loadData();
     }
 
     /**
@@ -26,7 +32,8 @@ public class Accessor {
      * @param since     - search tweets since specified day, month and year
      * @param querySize - number of tweets to retrieve
      */
-    public boolean search(String query, Date since, int querySize) {
+    public boolean search(String query, Date since, int querySize) throws
+            IOException, InterruptedException, TwitterException {
         Twitter twitter = TwitterFactory.getSingleton();
 
         SimpleDateFormat dateFormatter = new SimpleDateFormat("yyyy-MM-dd");
@@ -43,7 +50,7 @@ public class Accessor {
             // counter of batches
             int batchCounter = 0;
             // we will download tweets with id less that maxID
-            long maxID = Long.MAX_VALUE;
+            maxID = Long.MAX_VALUE;
             while (totalTweets < querySize) {
                 logger.log(Level.INFO, "Starting batch {0}, {1} tweets left to retrieve",
                         new Object[]{batchCounter, tweetsToRetrieve});
@@ -82,11 +89,8 @@ public class Accessor {
                 batchCounter++;
             }
 
-        }
-        catch (Exception e) {
-            // Catch all -- you're going to read the stack trace and figure out what needs to be done to fix it
-            System.out.println("That didn't work well...wonder why?");
-            e.printStackTrace();
+        } finally {
+            saveData();
         }
 
         logger.log(Level.INFO, "hie!");
@@ -112,5 +116,58 @@ public class Accessor {
 
     private int numberOfTweetsPerQuery(int wanted) { return Math.min(wanted, 2); }
 
+    private void loadData() throws IOException {
+        prop = new Properties();
+        InputStream input = null;
+        try {
+            input = getClass().getClassLoader().getResourceAsStream(propsFilename);
+            prop.load(input);
+            dataPath = prop.getProperty("dataPath");
+            if (dataPath == null)
+                throw new IOException("dataPath member is not found in application properties");
+        }
+        finally {
+            if (input != null)
+                 input.close();
+        }
+        maxIDPath = Paths.get(dataPath, maxIDFilename).normalize().toString();
+
+        // now read maxID
+        if (new File(maxIDPath).isFile()) {
+            Scanner scanner = null;
+            try {
+                scanner = new Scanner(new FileReader(maxIDPath));
+                maxID = scanner.nextLong();
+            } finally {
+                if (scanner != null)
+                    scanner.close();
+            }
+        }
+        else {
+            maxID = Long.MAX_VALUE;
+        }
+        logger.log(Level.INFO, "maxID is set to {0}", maxID);
+    }
+
+    private void saveData() throws IOException {
+        logger.log(Level.INFO, "Saving data...");
+        PrintWriter writer = null;
+        try {
+            writer = new PrintWriter(new File(maxIDPath));
+            writer.println(maxID);
+        } finally {
+            if (writer != null) {
+                writer.close();
+            }
+        }
+    }
+
+
     private final Logger logger;
+    private String dataPath;
+    private long maxID;
+    private Properties prop;
+    private static final String propsFilename = "javaTwitterTask.properties";
+    private static final String maxIDFilename = "maxID.txt";
+    private static String maxIDPath;
 }
