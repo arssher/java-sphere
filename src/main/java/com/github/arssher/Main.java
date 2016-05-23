@@ -15,11 +15,9 @@ public class Main {
         Date date = calendar.getTime();
 
         try {
-            System.out.println(new Accessor().search("Madrid", date, 5));
+            System.out.println(new Accessor("madrid").search("Madrid", date, 5));
         } catch (Exception e) {
             e.printStackTrace();
         }
-
-        System.out.println("Hello World!"); // Display the string.
     }
 }

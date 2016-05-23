@@ -3,6 +3,8 @@ package com.github.arssher;
 import twitter4j.*;
 
 import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -14,14 +16,15 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class Accessor {
-    public Accessor() throws IOException {
+    public Accessor(String queryDir) throws IOException {
         logger = Logger.getLogger(Accessor.class.getName());
         logger.setUseParentHandlers(false);
         ConsoleHandler handler = new ConsoleHandler();
         handler.setFormatter(new LogFormatter());
         logger.addHandler(handler);
 
-        loadData();
+        this.queryDir = queryDir;
+        loadState();
     }
 
     /**
@@ -42,95 +45,45 @@ public class Accessor {
         twitter4jQuery.setSince(sinceString);
         twitter4jQuery.setCount(numberOfTweetsPerQuery(querySize));
 
-        try {
-            // total tweets retrieved
-            int totalTweets = 0;
-            // tweets left to retrieve
-            int tweetsToRetrieve = querySize;
-            // counter of batches
-            int batchCounter = 0;
-            // we will download tweets with id less that maxID
-            maxID = Long.MAX_VALUE;
-            while (totalTweets < querySize) {
-                logger.log(Level.INFO, "Starting batch {0}, {1} tweets left to retrieve",
-                        new Object[]{batchCounter, tweetsToRetrieve});
+        // tweets left to retrieve
+        int tweetsToRetrieve = querySize - totalTweets;
+        // counter of batches
+        int batchCounter = 0;
 
-                // check limits
-                RateLimitStatus searchTweetsRateLimit = twitter.getRateLimitStatus("search").get("/search/tweets");
-                int callsLeft = searchTweetsRateLimit.getRemaining();
-                int secondsToSleep = searchTweetsRateLimit.getSecondsUntilReset();
-                logger.log(Level.INFO, "You have {0} calls remaining out of {1}, Limit resets in {2} seconds",
-                        new Object[]{
-                                callsLeft,
-                                searchTweetsRateLimit.getLimit(),
-                                secondsToSleep});
-                if (callsLeft == 0) {
-                    logger.log(Level.INFO, "Sleeping {0} seconds due to rate limis", secondsToSleep);
-                    Thread.sleep((secondsToSleep + 5) * 1000);
-                }
+        while (totalTweets < querySize) {
+            logger.log(Level.INFO, "Starting batch {0}, {1} tweets left to retrieve",
+                    new Object[]{batchCounter, tweetsToRetrieve});
 
-                // download tweets
-                QueryResult qResult = twitter.search(twitter4jQuery);
-                List<Status> tweets = qResult.getTweets();
+            // check limits
+            checkTwitterLimits(twitter);
 
-                // process tweets and update maxID
-                for (Status s: tweets) {
-                    logger.log(Level.INFO, "{0}", s.getText());
-                    if (s.getId() < maxID) {
-                        maxID = s.getId() - 1;
-                    }
-                }
+            // download tweets and process them
+            QueryResult qResult = twitter.search(twitter4jQuery);
+            saveBatch(qResult.getTweets());
 
-                // update counters
-                totalTweets += tweets.size();
-                tweetsToRetrieve = querySize - totalTweets;
-                twitter4jQuery.setCount(numberOfTweetsPerQuery(tweetsToRetrieve));
-                twitter4jQuery.setMaxId(maxID);
-                batchCounter++;
-            }
-
-        } finally {
-            saveData();
+            // update counters
+            tweetsToRetrieve = querySize - totalTweets;
+            twitter4jQuery.setCount(numberOfTweetsPerQuery(tweetsToRetrieve));
+            twitter4jQuery.setMaxId(maxID);
+            batchCounter++;
         }
 
-        logger.log(Level.INFO, "hie!");
-
-
-//        QueryResult result = twitter.search(twitter4jQuery);
-
-//        List<Status> statuses = null;
-//        try {
-//            statuses = twitter.getHomeTimeline();
-//        } catch (TwitterException e) {
-//            e.printStackTrace();
-//        }
-////        List<Status> statuses = Collections.<Status>emptyList();
-//        System.out.println("Showing home timeline.");
-//        for (Status status : statuses) {
-//            System.out.println(status.getUser().getName() + ":" +
-//                    status.getText());
-//            System.out.println("Successfully updated the status to [" + status.getText() + "].");
-//        }
         return true;
     }
 
-    private int numberOfTweetsPerQuery(int wanted) { return Math.min(wanted, 2); }
+    private int numberOfTweetsPerQuery(int wanted) { return Math.min(wanted, batchSize); }
 
-    private void loadData() throws IOException {
-        prop = new Properties();
-        InputStream input = null;
-        try {
-            input = getClass().getClassLoader().getResourceAsStream(propsFilename);
-            prop.load(input);
-            dataPath = prop.getProperty("dataPath");
-            if (dataPath == null)
-                throw new IOException("dataPath member is not found in application properties");
-        }
-        finally {
-            if (input != null)
-                 input.close();
-        }
-        maxIDPath = Paths.get(dataPath, maxIDFilename).normalize().toString();
+    /**
+     * Sets maxID, totalTweets and their paths
+     *
+     */
+    private void loadState() throws IOException {
+        String queryPath = Paths.get(dataPath, queryDir).normalize().toString();
+        // create directory for query cache, if doesn't exist
+        new File(queryPath).mkdirs();
+
+        maxIDPath = Paths.get(queryPath, maxIDFilename).normalize().toString();
+        tweetsPath = Paths.get(queryPath, tweetsFilename).normalize().toString();
 
         // now read maxID
         if (new File(maxIDPath).isFile()) {
@@ -147,10 +100,39 @@ public class Accessor {
             maxID = Long.MAX_VALUE;
         }
         logger.log(Level.INFO, "maxID is set to {0}", maxID);
+
+        // set totalTweets
+        totalTweets = countLines(tweetsPath);
+        logger.log(Level.INFO, "totalTweets is set to {0}", totalTweets);
     }
 
-    private void saveData() throws IOException {
-        logger.log(Level.INFO, "Saving data...");
+    /**
+     * Saves a batch of tweets and updates maxID
+     *
+     * @param tweets - tweets to save
+     */
+    private void saveBatch(List<Status> tweets) throws IOException, TwitterException {
+        logger.log(Level.INFO, "Saving batch...");
+
+        // save tweets
+        PrintWriter pw = null;
+        try {
+            pw = new PrintWriter(new FileWriter(tweetsPath, true));
+            for (Status s: tweets) {
+                String statusJson = TwitterObjectFactory.getRawJSON(s);
+                pw.println(statusJson);
+
+                logger.log(Level.INFO, "{0}", s.getText());
+                if (s.getId() < maxID) {
+                    maxID = s.getId() - 1;
+                }
+            }
+        } finally {
+            if (pw != null)
+                pw.close();
+        }
+
+        // save maxID and update totalTweets
         PrintWriter writer = null;
         try {
             writer = new PrintWriter(new File(maxIDPath));
@@ -160,14 +142,85 @@ public class Accessor {
                 writer.close();
             }
         }
+        totalTweets += tweets.size();
+        logger.log(Level.INFO, "totalTweets now is {0}", totalTweets);
     }
 
+    private void checkTwitterLimits(Twitter twitter) throws TwitterException, InterruptedException {
+        RateLimitStatus searchTweetsRateLimit = twitter.getRateLimitStatus("search").get("/search/tweets");
+        int callsLeft = searchTweetsRateLimit.getRemaining();
+        int secondsToSleep = searchTweetsRateLimit.getSecondsUntilReset();
+        logger.log(Level.INFO, "You have {0} calls remaining out of {1}, Limit resets in {2} seconds",
+                new Object[]{
+                        callsLeft,
+                        searchTweetsRateLimit.getLimit(),
+                        secondsToSleep});
+        if (callsLeft == 0) {
+            logger.log(Level.INFO, "Sleeping {0} seconds due to rate limis", secondsToSleep);
+            Thread.sleep((secondsToSleep + 5) * 1000);
+        }
+    }
+
+    /**
+     * Returns number of lines in file, 0 if file doesn't exists
+     *
+     * @param filename - name of file
+     */
+    private static int countLines(String filename) throws IOException {
+        if (!(new File(filename).isFile()))
+            return 0;
+
+        LineNumberReader reader = null;
+        int cnt;
+        try {
+            reader = new LineNumberReader(new FileReader(filename));
+            while ((reader.readLine()) != null);
+
+            cnt = reader.getLineNumber();
+        } finally {
+            if (reader != null)
+                reader.close();
+        }
+        return cnt;
+    }
 
     private final Logger logger;
-    private String dataPath;
+    // we will download tweets with id less than maxID
     private long maxID;
-    private Properties prop;
+    // total tweets retrieved
+    private int totalTweets;
+    // directory inside dataPath where tweets are cached
+    private String queryDir;
+    // path to file with maxID
+    private String maxIDPath;
+    // path to stored tweets
+    private String tweetsPath;
+
+    private static final int batchSize = 100;
     private static final String propsFilename = "javaTwitterTask.properties";
     private static final String maxIDFilename = "maxID.txt";
-    private static String maxIDPath;
+    private static final String tweetsFilename = "tweets.json";
+
+    // path to directory with cached data
+    private static String dataPath;
+
+    // load dataPath
+    {
+        Properties prop = new Properties();
+        InputStream input = null;
+        try {
+            input = getClass().getClassLoader().getResourceAsStream(propsFilename);
+            prop.load(input);
+            dataPath = prop.getProperty("dataPath");
+            if (dataPath == null)
+                throw new IOException("dataPath member is not found in application properties");
+
+            if (!Files.exists(Paths.get(dataPath)))
+                throw new IOException("dataPath property is found, but specified directory doesn't not exist");
+        }
+        finally {
+            if (input != null)
+                input.close();
+        }
+    }
 }
