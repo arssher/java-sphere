@@ -3,13 +3,9 @@ package com.github.arssher;
 import twitter4j.*;
 
 import java.io.*;
-import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.List;
-import java.util.Properties;
-import java.util.Scanner;
+import java.util.*;
 import java.util.logging.ConsoleHandler;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -70,7 +66,7 @@ public class Accessor {
      * @param since     - search tweets since specified day, month and year
      * @param querySize - number of tweets to retrieve
      */
-    public static boolean search(String query, Date since, int querySize) throws
+    public static TweetsContainer<Tweet> search(String query, Date since, int querySize) throws
             IOException, InterruptedException, TwitterException {
         Query twitter4jQuery = buildSearchQuery(query, since, querySize);
 
@@ -79,6 +75,8 @@ public class Accessor {
         // counter of batches
         int batchCounter = 0;
         QueryResult qResult;
+//        List<Tweet> res = new LinkedList<Tweet>();
+        TweetsContainer<Tweet> res = new LinkedListTweetsContainer<Tweet>();
         do {
             logger.log(Level.INFO, "Starting batch {0}, {1} tweets left to retrieve",
                     new Object[]{batchCounter, tweetsToRetrieve});
@@ -91,6 +89,7 @@ public class Accessor {
             List<Status> tweets = qResult.getTweets();
             for (Status s: tweets) {
                 logger.log(Level.INFO, "{0}", s.getText());
+                res.add(new Tweet(s));
             }
 
             tweetsToRetrieve -= tweets.size();
@@ -98,7 +97,7 @@ public class Accessor {
             batchCounter++;
         } while (qResult.hasNext() && tweetsToRetrieve > 0);
 
-        return true;
+        return res;
     }
 
     private static Query buildSearchQuery(String query, Date since, int querySize) {
