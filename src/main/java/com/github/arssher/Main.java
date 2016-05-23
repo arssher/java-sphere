@@ -1,9 +1,5 @@
 package com.github.arssher;
 
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.net.URL;
-import java.net.URLClassLoader;
 import java.util.Calendar;
 import java.util.Date;
 
@@ -15,7 +11,8 @@ public class Main {
         Date date = calendar.getTime();
 
         try {
-            System.out.println(new Accessor("madrid").search("Madrid", date, 5));
+//            System.out.println(new Accessor("madrid").searchAndCache("Madrid", date, 5));
+            System.out.println(Accessor.search("Madrid", date, 5));
         } catch (Exception e) {
             e.printStackTrace();
         }

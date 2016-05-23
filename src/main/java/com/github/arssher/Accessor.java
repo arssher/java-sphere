@@ -24,22 +24,17 @@ public class Accessor {
     }
 
     /**
-     * Returns a collection of tweets searched by {@code query}, created later than {@code since}.
+     * Caches a collection of tweets searched by {@code query}, created later than {@code since}.
      * Returns {@code querySize} tweets
      *
      * @param query     - search string
      * @param since     - search tweets since specified day, month and year
      * @param querySize - number of tweets to retrieve
      */
-    public boolean search(String query, Date since, int querySize) throws
+    public boolean searchAndCache(String query, Date since, int querySize) throws
             IOException, InterruptedException, TwitterException {
-        Twitter twitter = TwitterFactory.getSingleton();
 
-        SimpleDateFormat dateFormatter = new SimpleDateFormat("yyyy-MM-dd");
-        String sinceString = dateFormatter.format(since);
-        Query twitter4jQuery = new Query(query);
-        twitter4jQuery.setSince(sinceString);
-        twitter4jQuery.setCount(numberOfTweetsPerQuery(querySize));
+        Query twitter4jQuery = buildSearchQuery(query, since, querySize);
 
         // tweets left to retrieve
         int tweetsToRetrieve = querySize - totalTweets;
@@ -51,7 +46,7 @@ public class Accessor {
                     new Object[]{batchCounter, tweetsToRetrieve});
 
             // check limits
-            checkTwitterLimits(twitter);
+            checkTwitterLimits();
 
             // download tweets and process them
             QueryResult qResult = twitter.search(twitter4jQuery);
@@ -67,7 +62,55 @@ public class Accessor {
         return true;
     }
 
-    private int numberOfTweetsPerQuery(int wanted) { return Math.min(wanted, batchSize); }
+    /**
+     * Returns a collection of tweets searched by {@code query}, created later than {@code since}.
+     * Returns {@code querySize} tweets
+     *
+     * @param query     - search string
+     * @param since     - search tweets since specified day, month and year
+     * @param querySize - number of tweets to retrieve
+     */
+    public static boolean search(String query, Date since, int querySize) throws
+            IOException, InterruptedException, TwitterException {
+        Query twitter4jQuery = buildSearchQuery(query, since, querySize);
+
+        // tweets left to retrieve
+        int tweetsToRetrieve = querySize;
+        // counter of batches
+        int batchCounter = 0;
+        QueryResult qResult;
+        do {
+            logger.log(Level.INFO, "Starting batch {0}, {1} tweets left to retrieve",
+                    new Object[]{batchCounter, tweetsToRetrieve});
+
+            // check limits
+            checkTwitterLimits();
+
+            // download tweets
+            qResult = twitter.search(twitter4jQuery);
+            List<Status> tweets = qResult.getTweets();
+            for (Status s: tweets) {
+                logger.log(Level.INFO, "{0}", s.getText());
+            }
+
+            tweetsToRetrieve -= tweets.size();
+            twitter4jQuery = qResult.nextQuery();
+            batchCounter++;
+        } while (qResult.hasNext() && tweetsToRetrieve > 0);
+
+        return true;
+    }
+
+    private static Query buildSearchQuery(String query, Date since, int querySize) {
+        SimpleDateFormat dateFormatter = new SimpleDateFormat("yyyy-MM-dd");
+        String sinceString = dateFormatter.format(since);
+        Query twitter4jQuery = new Query(query);
+        twitter4jQuery.setSince(sinceString);
+        twitter4jQuery.setCount(numberOfTweetsPerQuery(querySize));
+        return twitter4jQuery;
+    }
+
+    private static int numberOfTweetsPerQuery(int wanted) { return Math.min(wanted, batchSize); }
 
     /**
      * Sets maxID, totalTweets and their paths
@@ -142,7 +185,7 @@ public class Accessor {
         logger.log(Level.INFO, "totalTweets now is {0}", totalTweets);
     }
 
-    private void checkTwitterLimits(Twitter twitter) throws TwitterException, InterruptedException {
+    private static void checkTwitterLimits() throws TwitterException, InterruptedException {
         RateLimitStatus searchTweetsRateLimit = twitter.getRateLimitStatus("search").get("/search/tweets");
         int callsLeft = searchTweetsRateLimit.getRemaining();
         int secondsToSleep = searchTweetsRateLimit.getSecondsUntilReset();
@@ -201,6 +244,7 @@ public class Accessor {
     // path to stored tweets
     private String tweetsPath;
 
+    private static final Twitter twitter = TwitterFactory.getSingleton();
     private static final int batchSize = 100;
     private static final String propsFilename = "javaTwitterTask.properties";
     private static final String maxIDFilename = "maxID.txt";
@@ -210,13 +254,13 @@ public class Accessor {
     private static String dataPath = null;
 
     // configure logging and load dataPath
-    {
+    static {
         configureLogging();
 
         Properties prop = new Properties();
         InputStream input = null;
         try {
-            input = getClass().getClassLoader().getResourceAsStream(propsFilename);
+            input = Accessor.class.getClassLoader().getResourceAsStream(propsFilename);
             if (input == null)
                 logger.log(Level.WARNING, "Applications properties {0} not found, caching is not allowed", propsFilename);
             else {
@@ -228,10 +272,16 @@ public class Accessor {
                     new File(dataPath).mkdirs();
                 }
             }
+        } catch (IOException e){
+            e.printStackTrace();
         }
         finally {
             if (input != null)
-                input.close();
+                try {
+                    input.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
         }
     }
 }
