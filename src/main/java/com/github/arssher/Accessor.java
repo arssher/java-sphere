@@ -4,7 +4,6 @@ import twitter4j.*;
 
 import java.io.*;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -17,12 +16,9 @@ import java.util.logging.Logger;
 
 public class Accessor {
     public Accessor(String queryDir) throws IOException {
-        logger = Logger.getLogger(Accessor.class.getName());
-        logger.setUseParentHandlers(false);
-        ConsoleHandler handler = new ConsoleHandler();
-        handler.setFormatter(new LogFormatter());
-        logger.addHandler(handler);
-
+        if (dataPath == null) {
+            throw new IOException("An attempt to use Accessor with caching using misconfigured dataPath");
+        }
         this.queryDir = queryDir;
         loadState();
     }
@@ -184,7 +180,16 @@ public class Accessor {
         return cnt;
     }
 
-    private final Logger logger;
+
+    private static void configureLogging() {
+        logger = Logger.getLogger(Accessor.class.getName());
+        logger.setUseParentHandlers(false);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setFormatter(new LogFormatter());
+        logger.addHandler(handler);
+    }
+
+    private static Logger logger;
     // we will download tweets with id less than maxID
     private long maxID;
     // total tweets retrieved
@@ -202,21 +207,27 @@ public class Accessor {
     private static final String tweetsFilename = "tweets.json";
 
     // path to directory with cached data
-    private static String dataPath;
+    private static String dataPath = null;
 
-    // load dataPath
+    // configure logging and load dataPath
     {
+        configureLogging();
+
         Properties prop = new Properties();
         InputStream input = null;
         try {
             input = getClass().getClassLoader().getResourceAsStream(propsFilename);
-            prop.load(input);
-            dataPath = prop.getProperty("dataPath");
-            if (dataPath == null)
-                throw new IOException("dataPath member is not found in application properties");
-
-            if (!Files.exists(Paths.get(dataPath)))
-                throw new IOException("dataPath property is found, but specified directory doesn't not exist");
+            if (input == null)
+                logger.log(Level.WARNING, "Applications properties {0} not found, caching is not allowed", propsFilename);
+            else {
+                prop.load(input);
+                dataPath = prop.getProperty("dataPath");
+                if (dataPath == null)
+                    logger.log(Level.WARNING, "dataPath member is not found in application properties, caching is not allowed");
+                else {
+                    new File(dataPath).mkdirs();
+                }
+            }
         }
         finally {
             if (input != null)
