@@ -38,12 +38,10 @@ public class Accessor {
         // counter of batches
         int batchCounter = 0;
 
-        while (totalTweets < querySize) {
+        while (tweetsToRetrieve < querySize) {
             logger.log(Level.INFO, "Starting batch {0}, {1} tweets left to retrieve",
                     new Object[]{batchCounter, tweetsToRetrieve});
-
-            // check limits
-            checkTwitterLimits();
+            ensureLimits();
 
             // download tweets and process them
             QueryResult qResult = twitter.search(twitter4jQuery);
@@ -77,6 +75,7 @@ public class Accessor {
         int batchCounter = 0;
         // analogue of not-static maxID
         long staticMaxID = Long.MAX_VALUE;
+        int staticCallsLeft = checkTwitterLimits();
         TweetsContainer<Tweet> res = new LinkedListTweetsContainer<>();
 
         while (tweetsToRetrieve > 0) {
@@ -84,11 +83,18 @@ public class Accessor {
                     new Object[]{batchCounter, tweetsToRetrieve});
 
             // check limits
-            checkTwitterLimits();
+            if (staticCallsLeft == 0)
+                staticCallsLeft = checkTwitterLimits();
+            staticCallsLeft--;
 
             // download tweets
             QueryResult qResult = twitter.search(twitter4jQuery);
             List<Status> tweets = qResult.getTweets();
+            if (tweets.size() == 0) {
+                logger.log(Level.WARNING, "No tweets downloaded during last query! Exiting");
+                break;
+            }
+
             for (Status s: tweets) {
                 res.add(new Tweet(s));
                 if (s.getId() < staticMaxID) {
@@ -201,7 +207,13 @@ public class Accessor {
         logger.log(Level.INFO, "totalTweets now is {0}", totalTweets);
     }
 
-    private static void checkTwitterLimits() throws TwitterException, InterruptedException {
+    private void ensureLimits() throws TwitterException, InterruptedException {
+        if (callsLeft == 0)
+            callsLeft = checkTwitterLimits();
+        callsLeft--;
+    }
+
+    private static int checkTwitterLimits() throws TwitterException, InterruptedException {
         RateLimitStatus searchTweetsRateLimit = twitter.getRateLimitStatus("search").get("/search/tweets");
         int callsLeft = searchTweetsRateLimit.getRemaining();
         int secondsToSleep = searchTweetsRateLimit.getSecondsUntilReset();
@@ -214,6 +226,7 @@ public class Accessor {
             logger.log(Level.INFO, "Sleeping {0} seconds due to rate limits", secondsToSleep);
             Thread.sleep((secondsToSleep + 5) * 1000);
         }
+        return callsLeft;
     }
 
     /**
@@ -259,6 +272,8 @@ public class Accessor {
     private String maxIDPath;
     // path to stored tweets
     private String tweetsPath;
+    // number of available calls, used by ensureLimits
+    private long callsLeft = 0;
 
     private static final Twitter twitter = TwitterFactory.getSingleton();
     private static final int batchSize = 100;

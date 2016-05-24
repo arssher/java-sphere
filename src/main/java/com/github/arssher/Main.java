@@ -13,7 +13,7 @@ public class Main {
     public static void main(String[] args) {
         Calendar calendar = Calendar.getInstance();
         calendar.clear();
-        calendar.set(2016, Calendar.MAY, 1, 0, 0);
+        calendar.set(2016, Calendar.APRIL, 1, 0, 0);
         Date date = calendar.getTime();
 
         try {
