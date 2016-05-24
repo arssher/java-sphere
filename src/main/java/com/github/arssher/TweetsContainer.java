@@ -3,9 +3,18 @@ package com.github.arssher;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 
 public interface TweetsContainer<T extends Tweet> extends Iterable<T>, Serializable {
+    /**
+     * Returns the number of elements in this container.  If this container contains
+     * more than <tt>Integer.MAX_VALUE</tt> elements, returns
+     * <tt>Integer.MAX_VALUE</tt>.
+     *
+     * @return the number of elements in this list
+     */
+    int size();
     /**
      * Adds an element to this container
      *
@@ -20,7 +29,7 @@ public interface TweetsContainer<T extends Tweet> extends Iterable<T>, Serializa
      * @param tweets collection containing elements to be added to this container
      * @return true if this container changed as a result of the call
      */
-    boolean addAll(Collection<? extends Tweet> tweets);
+    boolean addAll(Collection<? extends T> tweets);
 
     /**
      * Removes a single instance of the specified element from this
@@ -40,7 +49,7 @@ public interface TweetsContainer<T extends Tweet> extends Iterable<T>, Serializa
     /**
      * @return oldest tweet
      */
-//    Tweet getOldest();
+    Tweet getOldest();
 
     /**
      * @return tweet most favorited
@@ -57,7 +66,13 @@ public interface TweetsContainer<T extends Tweet> extends Iterable<T>, Serializa
      * Group elements in container by theirs langs
      * @return grouped
      */
-//    Map<String, Collection<T>> groupByLang();
+    Map<String, List<T>> groupByLang();
+
+    /**
+     * Group elements in container by theirs langs and count them
+     * @return grouped
+     */
+    Map<String, Integer> groupByLangCount();
 
     /**
      * 1. Select tweets where field lang equals

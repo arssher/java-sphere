@@ -3,24 +3,32 @@ package com.github.arssher;
 
 import java.util.*;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
-public class LinkedListTweetsContainer<T extends Tweet> implements TweetsContainer {
+import static java.util.stream.Collectors.toMap;
+
+public class LinkedListTweetsContainer<T extends Tweet> implements TweetsContainer<T> {
     public LinkedListTweetsContainer() {
         tweets = new LinkedList<>();
     }
 
     @Override
-    public boolean add(Tweet tweet) {
+    public int size() {
+        return tweets.size();
+    }
+
+    @Override
+    public boolean add(T tweet) {
         return tweets.add(tweet);
     }
 
     @Override
-    public boolean addAll(Collection collection) {
+    public boolean addAll(Collection<? extends T> collection) {
         return tweets.addAll(collection);
     }
 
     @Override
-    public boolean remove(Tweet tweet) {
+    public boolean remove(T tweet) {
         return tweets.remove(tweet);
     }
 
@@ -30,25 +38,35 @@ public class LinkedListTweetsContainer<T extends Tweet> implements TweetsContain
     }
 
     @Override
+    public Tweet getOldest() {
+        return Collections.max(tweets, new Tweet.TimedStampComparator());
+    }
+
+    @Override
     public Tweet getTopRated() {
         return Collections.max(tweets, new Tweet.FavCountComparator());
     }
 
     @Override
-    public void sort(Comparator comparator) {
+    public void sort(Comparator<T> comparator) {
         Collections.sort(tweets, comparator);
     }
 
+    @Override
+    public Map<String, List<T>> groupByLang() {
+        return tweets.stream().collect(Collectors.groupingBy(T::getLang));
+    }
 
     @Override
-    public Iterator iterator() {
+    public Map<String, Integer> groupByLangCount() {
+        return groupByLang().entrySet().stream()
+                .collect(toMap(Map.Entry::getKey, e -> e.getValue().size()));
+    }
+
+    @Override
+    public Iterator<T> iterator() {
         return tweets.iterator();
     }
 
-    @Override
-    public void forEach(Consumer action) {
-        tweets.forEach(tweet -> action.accept(tweet));
-    }
-
-    private final List<Tweet> tweets;
+    private final List<T> tweets;
 }

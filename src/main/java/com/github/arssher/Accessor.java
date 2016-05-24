@@ -1,6 +1,7 @@
 package com.github.arssher;
 
 import twitter4j.*;
+import twitter4j.api.HelpResources;
 
 import java.io.*;
 import java.nio.file.Paths;
@@ -51,7 +52,7 @@ public class Accessor {
             // update counters
             tweetsToRetrieve = querySize - totalTweets;
             twitter4jQuery.setCount(numberOfTweetsPerQuery(tweetsToRetrieve));
-            twitter4jQuery.setMaxId(maxID);
+            twitter4jQuery.setMaxId(maxID - 1);
             batchCounter++;
         }
 
@@ -74,10 +75,11 @@ public class Accessor {
         int tweetsToRetrieve = querySize;
         // counter of batches
         int batchCounter = 0;
-        QueryResult qResult;
-//        List<Tweet> res = new LinkedList<Tweet>();
-        TweetsContainer<Tweet> res = new LinkedListTweetsContainer<Tweet>();
+        QueryResult qResult = null;
+        TweetsContainer<Tweet> res = new LinkedListTweetsContainer<>();
         do {
+            if (batchCounter != 0)
+                twitter4jQuery = qResult.nextQuery();
             logger.log(Level.INFO, "Starting batch {0}, {1} tweets left to retrieve",
                     new Object[]{batchCounter, tweetsToRetrieve});
 
@@ -88,15 +90,27 @@ public class Accessor {
             qResult = twitter.search(twitter4jQuery);
             List<Status> tweets = qResult.getTweets();
             for (Status s: tweets) {
-                logger.log(Level.INFO, "{0}", s.getText());
                 res.add(new Tweet(s));
             }
 
             tweetsToRetrieve -= tweets.size();
-            twitter4jQuery = qResult.nextQuery();
             batchCounter++;
         } while (qResult.hasNext() && tweetsToRetrieve > 0);
+        if (tweetsToRetrieve > 0) {
+            logger.log(Level.WARNING, "Note that we could find only {0} tweets while you requested {1}",
+                    new Object[] {querySize - tweetsToRetrieve, querySize});
+        }
 
+        return res;
+    }
+
+    public static Map<String, String> getLanguages() throws TwitterException, InterruptedException {
+        checkTwitterLimits();
+        Map<String, String> res = new HashMap<>();
+        ResponseList<HelpResources.Language> langs = twitter.getLanguages();
+        for (HelpResources.Language lang : langs) {
+            res.put(lang.getCode(), lang.getName());
+        }
         return res;
     }
 
@@ -160,7 +174,7 @@ public class Accessor {
                 String statusJson = TwitterObjectFactory.getRawJSON(s);
                 pw.println(statusJson);
 
-                logger.log(Level.INFO, "{0}", s.getText());
+                logger.log(Level.INFO, "id {0}, {1}", new Object[] {s.getId(), s.getText()});
                 if (s.getId() < maxID) {
                     maxID = s.getId() - 1;
                 }
@@ -188,13 +202,13 @@ public class Accessor {
         RateLimitStatus searchTweetsRateLimit = twitter.getRateLimitStatus("search").get("/search/tweets");
         int callsLeft = searchTweetsRateLimit.getRemaining();
         int secondsToSleep = searchTweetsRateLimit.getSecondsUntilReset();
-        logger.log(Level.INFO, "You have {0} calls remaining out of {1}, Limit resets in {2} seconds",
+        logger.log(Level.INFO, "You have {0} calls remaining out of {1}, limit resets in {2} seconds",
                 new Object[]{
                         callsLeft,
                         searchTweetsRateLimit.getLimit(),
                         secondsToSleep});
         if (callsLeft == 0) {
-            logger.log(Level.INFO, "Sleeping {0} seconds due to rate limis", secondsToSleep);
+            logger.log(Level.INFO, "Sleeping {0} seconds due to rate limits", secondsToSleep);
             Thread.sleep((secondsToSleep + 5) * 1000);
         }
     }

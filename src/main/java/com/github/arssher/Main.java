@@ -1,9 +1,13 @@
 package com.github.arssher;
 
-import java.util.Calendar;
-import java.util.Collections;
-import java.util.Date;
-import java.util.List;
+import org.jfree.data.category.CategoryDataset;
+import org.jfree.data.category.DefaultCategoryDataset;
+import org.jfree.ui.InsetsChooserPanel;
+import org.jfree.ui.RefineryUtilities;
+
+import java.util.*;
+
+import static java.util.stream.Collectors.toMap;
 
 public class Main {
     public static void main(String[] args) {
@@ -13,18 +17,39 @@ public class Main {
         Date date = calendar.getTime();
 
         try {
-//            System.out.println(new Accessor("madrid").searchAndCache("Madrid", date, 5));
-            TweetsContainer<Tweet> tweets = Accessor.search("Madrid", date, 5);
-            for (Tweet tweet: tweets) {
-                System.out.println(tweet);
-            }
-            System.out.println("______________________________");
-            tweets.sort(new Tweet.RetweetCountComparator());
-            for (Tweet tweet: tweets) {
-                System.out.println(tweet);
-            }
+//            TweetsContainer<Tweet> realMadridTweets = Accessor.search("Real Madrid", date, 600);
+//            TweetsContainer<Tweet> atleticoMadridTweets = Accessor.search("Atletico Madrid", date, 1500);
+//            Map<String, String> languages = Accessor.getLanguages();
+//            drawBarChart(realMadridTweets, atleticoMadridTweets, languages);
+
+            new Accessor("madrid").searchAndCache("Atletico Madrid", date, 1500);
+
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
+  public static void drawBarChart(TweetsContainer<Tweet> realMadridTweets, TweetsContainer<Tweet> athleticoMadridTweets,
+                                  Map<String, String> langs) {
+      System.out.println(athleticoMadridTweets.size());
+      System.out.println(realMadridTweets.size());
+      Map<String, Integer> realMadridTweetsGroupedCounted = realMadridTweets.groupByLangCount();
+      Map<String, Integer> athleticoMadridGroupedCounted = athleticoMadridTweets.groupByLangCount();
+
+      Set<String> allLangCodes = new HashSet<>();
+      allLangCodes.addAll(realMadridTweetsGroupedCounted.keySet());
+      allLangCodes.addAll(athleticoMadridGroupedCounted.keySet());
+
+      DefaultCategoryDataset dataset = new DefaultCategoryDataset();
+      for (String langCode : allLangCodes) {
+          String langName = langs.getOrDefault(langCode, "Unknown");
+          dataset.addValue(realMadridTweetsGroupedCounted.getOrDefault(langCode, 0), "RealMadrid tweets", langName);
+          dataset.addValue(athleticoMadridGroupedCounted.getOrDefault(langCode, 0), "AthleticoMadrid tweets", langName);
+      }
+
+      BarChartAWT chart = new BarChartAWT("RealMadrid and AthleticoMadrid tweets by language",
+              "RealMadrid and AthleticoMadrid tweets by language", dataset);
+      chart.pack();
+      RefineryUtilities.centerFrameOnScreen(chart);
+      chart.setVisible( true );
+  }
 }

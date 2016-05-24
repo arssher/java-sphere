@@ -46,6 +46,10 @@ public class Tweet implements Serializable {
     private final int retweetCount;
     private final String lang;
 
+    public long getID() { return id; }
+
+    public String getStringID() { return String.valueOf(id); }
+
     public Date getTimestamp() {
         return timestamp;
     }
@@ -56,6 +60,10 @@ public class Tweet implements Serializable {
 
     public int getFavoriteCount() {
         return favoriteCount;
+    }
+
+    public String getLang() {
+        return lang;
     }
 
     static class TimedStampComparator implements Comparator<Tweet> {
@@ -76,9 +84,3 @@ public class Tweet implements Serializable {
         }
     }
 }
-
-//public class TimeStampComparator implements Comparator<Tweet> {
-//    public int compare(Tweet t1, Tweet t2) {
-//        return t1.getTimestamp().compareTo(t2.getTimestamp());
-//    }
-//}
