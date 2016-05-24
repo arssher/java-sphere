@@ -52,7 +52,7 @@ public class Accessor {
             // update counters
             tweetsToRetrieve = querySize - totalTweets;
             twitter4jQuery.setCount(numberOfTweetsPerQuery(tweetsToRetrieve));
-            twitter4jQuery.setMaxId(maxID - 1);
+            twitter4jQuery.setMaxId(maxID);
             batchCounter++;
         }
 
@@ -75,11 +75,11 @@ public class Accessor {
         int tweetsToRetrieve = querySize;
         // counter of batches
         int batchCounter = 0;
-        QueryResult qResult = null;
+        // analogue of not-static maxID
+        long staticMaxID = Long.MAX_VALUE;
         TweetsContainer<Tweet> res = new LinkedListTweetsContainer<>();
-        do {
-            if (batchCounter != 0)
-                twitter4jQuery = qResult.nextQuery();
+
+        while (tweetsToRetrieve > 0) {
             logger.log(Level.INFO, "Starting batch {0}, {1} tweets left to retrieve",
                     new Object[]{batchCounter, tweetsToRetrieve});
 
@@ -87,20 +87,22 @@ public class Accessor {
             checkTwitterLimits();
 
             // download tweets
-            qResult = twitter.search(twitter4jQuery);
+            QueryResult qResult = twitter.search(twitter4jQuery);
             List<Status> tweets = qResult.getTweets();
             for (Status s: tweets) {
                 res.add(new Tweet(s));
+                if (s.getId() < staticMaxID) {
+                    staticMaxID = s.getId() - 1;
+                }
             }
 
+            twitter4jQuery.setMaxId(staticMaxID);
             tweetsToRetrieve -= tweets.size();
+            twitter4jQuery.setCount(numberOfTweetsPerQuery(tweetsToRetrieve));
             batchCounter++;
-        } while (qResult.hasNext() && tweetsToRetrieve > 0);
-        if (tweetsToRetrieve > 0) {
-            logger.log(Level.WARNING, "Note that we could find only {0} tweets while you requested {1}",
-                    new Object[] {querySize - tweetsToRetrieve, querySize});
         }
 
+        logger.log(Level.INFO, "Downloaded {0} unique tweets", res.countUnique());
         return res;
     }
 
@@ -120,6 +122,7 @@ public class Accessor {
         Query twitter4jQuery = new Query(query);
         twitter4jQuery.setSince(sinceString);
         twitter4jQuery.setCount(numberOfTweetsPerQuery(querySize));
+        twitter4jQuery.setCount(querySize);
         return twitter4jQuery;
     }
 

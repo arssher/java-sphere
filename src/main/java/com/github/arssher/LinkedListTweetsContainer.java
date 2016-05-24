@@ -38,6 +38,13 @@ public class LinkedListTweetsContainer<T extends Tweet> implements TweetsContain
     }
 
     @Override
+    public int countUnique() {
+        Set<Long> ids = new HashSet<>();
+        tweets.forEach(t -> ids.add(t.getID()));
+        return ids.size();
+    }
+
+    @Override
     public Tweet getOldest() {
         return Collections.max(tweets, new Tweet.TimedStampComparator());
     }

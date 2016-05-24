@@ -47,6 +47,11 @@ public interface TweetsContainer<T extends Tweet> extends Iterable<T>, Serializa
     void clear();
 
     /**
+     * Counts number of unique tweets
+     */
+    int countUnique();
+
+    /**
      * @return oldest tweet
      */
     Tweet getOldest();

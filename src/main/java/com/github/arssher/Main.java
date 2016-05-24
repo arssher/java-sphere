@@ -17,21 +17,16 @@ public class Main {
         Date date = calendar.getTime();
 
         try {
-//            TweetsContainer<Tweet> realMadridTweets = Accessor.search("Real Madrid", date, 600);
-//            TweetsContainer<Tweet> atleticoMadridTweets = Accessor.search("Atletico Madrid", date, 1500);
-//            Map<String, String> languages = Accessor.getLanguages();
-//            drawBarChart(realMadridTweets, atleticoMadridTweets, languages);
-
-            new Accessor("madrid").searchAndCache("Atletico Madrid", date, 1500);
-
+            TweetsContainer<Tweet> realMadridTweets = Accessor.search("Real Madrid", date, 5000);
+            TweetsContainer<Tweet> atleticoMadridTweets = Accessor.search("Atletico Madrid", date, 5000);
+            Map<String, String> languages = Accessor.getLanguages();
+            drawBarChart(realMadridTweets, atleticoMadridTweets, languages);
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
   public static void drawBarChart(TweetsContainer<Tweet> realMadridTweets, TweetsContainer<Tweet> athleticoMadridTweets,
                                   Map<String, String> langs) {
-      System.out.println(athleticoMadridTweets.size());
-      System.out.println(realMadridTweets.size());
       Map<String, Integer> realMadridTweetsGroupedCounted = realMadridTweets.groupByLangCount();
       Map<String, Integer> athleticoMadridGroupedCounted = athleticoMadridTweets.groupByLangCount();
 
@@ -42,12 +37,12 @@ public class Main {
       DefaultCategoryDataset dataset = new DefaultCategoryDataset();
       for (String langCode : allLangCodes) {
           String langName = langs.getOrDefault(langCode, "Unknown");
-          dataset.addValue(realMadridTweetsGroupedCounted.getOrDefault(langCode, 0), "RealMadrid tweets", langName);
-          dataset.addValue(athleticoMadridGroupedCounted.getOrDefault(langCode, 0), "AthleticoMadrid tweets", langName);
+          dataset.addValue(realMadridTweetsGroupedCounted.getOrDefault(langCode, 0), "Real Madrid tweets", langName);
+          dataset.addValue(athleticoMadridGroupedCounted.getOrDefault(langCode, 0), "Atletico Madrid tweets", langName);
       }
+      final String title = "Real Madrid and Atletico Madrid tweets by language";
 
-      BarChartAWT chart = new BarChartAWT("RealMadrid and AthleticoMadrid tweets by language",
-              "RealMadrid and AthleticoMadrid tweets by language", dataset);
+      BarChartAWT chart = new BarChartAWT(title, title, dataset);
       chart.pack();
       RefineryUtilities.centerFrameOnScreen(chart);
       chart.setVisible( true );
