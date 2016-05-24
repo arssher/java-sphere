@@ -38,7 +38,7 @@ public class Accessor {
         // counter of batches
         int batchCounter = 0;
 
-        while (tweetsToRetrieve < querySize) {
+        while (totalTweets < querySize) {
             logger.log(Level.INFO, "Starting batch {0}, {1} tweets left to retrieve",
                     new Object[]{batchCounter, tweetsToRetrieve});
             ensureLimits();
