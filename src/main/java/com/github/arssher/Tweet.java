@@ -17,6 +17,16 @@ public class Tweet implements Serializable {
         lang = status.getLang();
     }
 
+    public Tweet(long id, long userID, String content, Date timestamp, int favoriteCount, int retweetCount, String lang) {
+        this.id = id;
+        this.userID = id;
+        this.content = content;
+        this.timestamp = timestamp;
+        this.favoriteCount = favoriteCount;
+        this.retweetCount = retweetCount;
+        this.lang = lang;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (!(o instanceof Tweet))

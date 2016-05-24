@@ -23,6 +23,11 @@ public class LinkedListTweetsContainer<T extends Tweet> implements TweetsContain
     }
 
     @Override
+    public boolean contains(T tweet) {
+        return tweets.contains(tweet);
+    }
+
+    @Override
     public boolean addAll(Collection<? extends T> collection) {
         return tweets.addAll(collection);
     }
@@ -73,6 +78,11 @@ public class LinkedListTweetsContainer<T extends Tweet> implements TweetsContain
     @Override
     public Iterator<T> iterator() {
         return tweets.iterator();
+    }
+
+    @Override
+    public T getFirst() {
+        return tweets.get(0);
     }
 
     private final List<T> tweets;

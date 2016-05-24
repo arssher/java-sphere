@@ -15,6 +15,14 @@ public interface TweetsContainer<T extends Tweet> extends Iterable<T>, Serializa
      * @return the number of elements in this list
      */
     int size();
+
+    /**
+     * Get first element of the container
+     *
+     * @return the first element
+     */
+     T getFirst();
+
     /**
      * Adds an element to this container
      *
@@ -22,6 +30,14 @@ public interface TweetsContainer<T extends Tweet> extends Iterable<T>, Serializa
      * @return true if this container changed as a result of the call
      */
     boolean add(T tweet);
+
+    /**
+     * Checks whether tweet is in container
+     *
+     * @param tweet element to check
+     * @return true if contains
+     */
+    boolean contains(T tweet);
 
     /**
      * Adds all of the elements in the specified collection to this container
